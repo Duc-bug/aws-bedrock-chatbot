@@ -1,6 +1,6 @@
-# AWS Bedrock AI Chatbot 🤖☁️
+# AWS Bedrock AI Chatbot
 
-![Mô tả ảnh: Giao diện Chatbot](<img width="1913" height="908" alt="image" src="https://github.com/user-attachments/assets/7a69619d-78bc-4047-ab51-31e0200485ba" />
+![Mô tả ảnh: Giao diện Chatbot](<img width="1913" height="908" alt="image" src="https://github.com/user-attachments/assets/76587b37-e3dd-4ba9-9be6-76808f4ae874" />
 ) 
 *(Gợi ý: Bạn có thể chụp màn hình giao diện app của bạn và thay link ảnh vào đây)
 
