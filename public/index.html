@@ -195,7 +195,7 @@
       color: var(--text-secondary);
     }
 
-    #btn-clear {
+    .header-btn {
       padding: 7px 14px;
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -208,10 +208,167 @@
       transition: all 0.2s ease;
     }
 
-    #btn-clear:hover {
+    .header-btn:hover {
       border-color: var(--accent-1);
       color: var(--accent-1);
       background: rgba(99, 102, 241, 0.1);
+    }
+
+    /* ─── History Sidebar ─────────────────────────────────── */
+    #history-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    #history-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    #history-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 340px;
+      height: 100vh;
+      background: #0d1220;
+      border-left: 1px solid var(--border);
+      z-index: 201;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+      box-shadow: -8px 0 40px rgba(0,0,0,0.4);
+    }
+    #history-panel.open {
+      transform: translateX(0);
+    }
+
+    .history-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .history-header h2 {
+      font-size: 15px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-3));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    #btn-close-history {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    #btn-close-history:hover { border-color: #ef4444; color: #ef4444; }
+
+    #btn-save-session {
+      margin: 12px 16px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px dashed var(--accent-1);
+      background: rgba(99,102,241,0.08);
+      color: var(--accent-1);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    #btn-save-session:hover {
+      background: rgba(99,102,241,0.18);
+      box-shadow: 0 0 12px rgba(99,102,241,0.3);
+    }
+
+    #session-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 12px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #session-list::-webkit-scrollbar { width: 3px; }
+    #session-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .session-item {
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .session-item:hover {
+      border-color: var(--accent-1);
+      background: rgba(99,102,241,0.07);
+      transform: translateX(-2px);
+    }
+    .session-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+    .session-info { flex: 1; min-width: 0; }
+    .session-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .session-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+    .session-del {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .session-del:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.1); }
+
+    .no-sessions {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.8;
+    }
+    .no-sessions .no-icon { font-size: 40px; margin-bottom: 12px; }
+
+    @media (max-width: 400px) {
+      #history-panel { width: 100vw; }
     }
 
     /* ─── System Prompt Bar ──────────────────────────────────── */
@@ -681,7 +838,8 @@
       <div class="header-right">
         <div id="status-dot"></div>
         <span class="status-text" id="status-text">Online</span>
-        <button id="btn-clear" onclick="clearChat()">🗑 Xoá chat</button>
+        <button class="header-btn" id="btn-history" onclick="toggleHistory()">📋 Lịch sử</button>
+        <button class="header-btn" id="btn-clear" onclick="clearChat()">🗑 Xoá chat</button>
       </div>
     </header>
 
@@ -716,6 +874,17 @@
 
   </div>
 
+  <!-- History Sidebar -->
+  <div id="history-overlay" onclick="toggleHistory()"></div>
+  <div id="history-panel">
+    <div class="history-header">
+      <h2>📋 Lịch sử hội thoại</h2>
+      <button id="btn-close-history" onclick="toggleHistory()">✕</button>
+    </div>
+    <button id="btn-save-session" onclick="saveCurrentSession()">💾 Lưu cuộc hội thoại hiện tại</button>
+    <div id="session-list"></div>
+  </div>
+
   <!-- Toast -->
   <div id="toast"></div>
 
@@ -723,6 +892,34 @@
     // ─── State ────────────────────────────────────────────────
     let conversationHistory = [];
     let isLoading = false;
+
+    // ─── LocalStorage Keys ────────────────────────────────────
+    const LS_HISTORY  = 'nexus_chat_history';
+    const LS_SYSTEM   = 'nexus_system_prompt';
+    const LS_SESSIONS = 'nexus_sessions';
+
+    // ─── Lưu dữ liệu vào localStorage ────────────────────────
+    function saveToStorage() {
+      try {
+        localStorage.setItem(LS_HISTORY, JSON.stringify(conversationHistory));
+        localStorage.setItem(LS_SYSTEM, systemPrompt.value);
+      } catch (e) {
+        console.warn('localStorage không khả dụng:', e);
+      }
+    }
+
+    // ─── Khôi phục dữ liệu từ localStorage ───────────────────
+    function loadFromStorage() {
+      try {
+        // Chỉ khôi phục system prompt, không render lại tin nhắn
+        const savedSystem = localStorage.getItem(LS_SYSTEM);
+        if (savedSystem) {
+          systemPrompt.value = savedSystem;
+        }
+      } catch (e) {
+        console.warn('Không thể đọc localStorage:', e);
+      }
+    }
 
     // ─── DOM Refs ─────────────────────────────────────────────
     const chatContainer = document.getElementById('chat-container');
@@ -841,13 +1038,16 @@
 
     // ─── Clear Chat ───────────────────────────────────────────
     function clearChat() {
+      if (!confirm('Bạn có chắc muốn xoá toàn bộ lịch sử chat không?')) return;
       conversationHistory = [];
+      // Xoá khỏi localStorage
+      localStorage.removeItem(LS_HISTORY);
       chatContainer.innerHTML = `
       <div id="welcome">
         <div class="welcome-icon">✨</div>
         <div class="welcome-title">Xin chào! Tôi có thể giúp gì?</div>
         <p class="welcome-sub">
-          Được vận hành bởi <strong>AWS Bedrock</strong> &amp
+          Được vận hành bởi <strong>AWS Bedrock</strong> &amp;
           Hãy đặt câu hỏi bất kỳ!
         </p>
         <div class="welcome-chips">
@@ -873,6 +1073,7 @@
       // Append user message
       appendMessage('user', text);
       conversationHistory.push({ role: 'user', content: text });
+      saveToStorage();
 
       // Show typing
       showTyping();
@@ -893,6 +1094,7 @@
 
         if (data.success) {
           conversationHistory.push({ role: 'assistant', content: data.message });
+          saveToStorage();
           appendMessage('bot', data.message, {
             tokens: data.usage?.totalTokens,
           });
@@ -916,8 +1118,155 @@
       }
     }
 
-    // ─── Health check on load ─────────────────────────────────
+    // ─── History Sidebar ──────────────────────────────────────
+    function toggleHistory() {
+      const panel   = document.getElementById('history-panel');
+      const overlay = document.getElementById('history-overlay');
+      const isOpen  = panel.classList.toggle('open');
+      overlay.classList.toggle('open', isOpen);
+      if (isOpen) renderSessionList();
+    }
+
+    function getSessions() {
+      try {
+        return JSON.parse(localStorage.getItem(LS_SESSIONS) || '[]');
+      } catch { return []; }
+    }
+
+    function saveSessions(sessions) {
+      localStorage.setItem(LS_SESSIONS, JSON.stringify(sessions));
+    }
+
+    function saveCurrentSession() {
+      if (conversationHistory.length === 0) {
+        showToast('⚠️ Chưa có tin nhắn nào để lưu!', 2500);
+        return;
+      }
+      const firstUserMsg = conversationHistory.find(m => m.role === 'user');
+      const title = firstUserMsg
+        ? firstUserMsg.content.substring(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '')
+        : 'Hội thoại ' + new Date().toLocaleString('vi-VN');
+
+      const session = {
+        id: Date.now(),
+        title,
+        timestamp: new Date().toISOString(),
+        messages: [...conversationHistory],
+        systemPrompt: systemPrompt.value,
+        msgCount: conversationHistory.length,
+      };
+
+      const sessions = getSessions();
+      sessions.unshift(session);
+      // Giới hạn 30 phiên
+      if (sessions.length > 30) sessions.splice(30);
+      saveSessions(sessions);
+      renderSessionList();
+      showToast('✅ Đã lưu phiên hội thoại!', 2500);
+    }
+
+    function loadSession(id) {
+      const sessions = getSessions();
+      const session  = sessions.find(s => s.id === id);
+      if (!session) return;
+
+      if (conversationHistory.length > 0 && !confirm('Tải phiên này sẽ thay thế hội thoại hiện tại. Tiếp tục?')) return;
+
+      conversationHistory = [...session.messages];
+      if (session.systemPrompt) systemPrompt.value = session.systemPrompt;
+      saveToStorage();
+
+      // Render lại
+      const welcome = document.getElementById('welcome');
+      if (welcome) welcome.remove();
+      chatContainer.innerHTML = '';
+      session.messages.forEach(msg => {
+        appendMessage(msg.role === 'user' ? 'user' : 'bot', msg.content);
+      });
+
+      toggleHistory();
+      showToast('📂 Đã tải phiên: ' + session.title.substring(0, 30), 3000);
+    }
+
+    function deleteSession(id, e) {
+      e.stopPropagation();
+      if (!confirm('Xoá phiên hội thoại này?')) return;
+      const sessions = getSessions().filter(s => s.id !== id);
+      saveSessions(sessions);
+      renderSessionList();
+    }
+
+    function renderSessionList() {
+      const list     = document.getElementById('session-list');
+      const sessions = getSessions();
+
+      if (sessions.length === 0) {
+        list.innerHTML = `
+          <div class="no-sessions">
+            <div class="no-icon">💬</div>
+            <div>Chưa có phiên nào được lưu.</div>
+            <div style="margin-top:6px;font-size:12px;">Nhấn <strong style="color:var(--accent-1);">Lưu cuộc hội thoại</strong> để lưu lại.</div>
+          </div>`;
+        return;
+      }
+
+      list.innerHTML = sessions.map(s => {
+        const date = new Date(s.timestamp).toLocaleString('vi-VN', {
+          day:'2-digit', month:'2-digit', year:'numeric',
+          hour:'2-digit', minute:'2-digit'
+        });
+        const msgLabel = Math.floor(s.msgCount / 2) + ' câu hỏi';
+        return `
+          <div class="session-item" onclick="loadSession(${s.id})">
+            <div class="session-icon">💬</div>
+            <div class="session-info">
+              <div class="session-title">${s.title.replace(/</g,'&lt;')}</div>
+              <div class="session-meta">${date} &nbsp;·&nbsp; ${msgLabel}</div>
+            </div>
+            <button class="session-del" onclick="deleteSession(${s.id}, event)" title="Xoá phiên này">🗑</button>
+          </div>`;
+      }).join('');
+    }
+
+    // ─── Tự động lưu phiên khi thoát / reload ────────────────
+    window.addEventListener('beforeunload', () => {
+      if (conversationHistory.length === 0) return;
+
+      const firstUserMsg = conversationHistory.find(m => m.role === 'user');
+      const title = firstUserMsg
+        ? firstUserMsg.content.substring(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '')
+        : 'Hội thoại ' + new Date().toLocaleString('vi-VN');
+
+      const session = {
+        id: Date.now(),
+        title,
+        timestamp: new Date().toISOString(),
+        messages: [...conversationHistory],
+        systemPrompt: systemPrompt.value,
+        msgCount: conversationHistory.length,
+        autoSaved: true,  // đánh dấu là tự động lưu
+      };
+
+      const sessions = getSessions();
+      // Xoá phiên auto-save cũ nhất nếu đã có (tránh trùng)
+      const withoutOldAuto = sessions.filter(s => !s.autoSaved);
+      withoutOldAuto.unshift(session);
+      if (withoutOldAuto.length > 30) withoutOldAuto.splice(30);
+      saveSessions(withoutOldAuto);
+
+      // Xoá LS_HISTORY → lần mở tiếp theo bắt đầu trang mới
+      localStorage.removeItem(LS_HISTORY);
+    });
+
+    // ─── Health check on load + Khôi phục dữ liệu ───────────
     window.addEventListener('load', async () => {
+      // Chỉ khôi phục system prompt, bắt đầu trang mới
+      loadFromStorage();
+
+      // Lưu system prompt khi người dùng thay đổi
+      systemPrompt.addEventListener('input', saveToStorage);
+
+      // Health check
       try {
         const res = await fetch('/api/health');
         const data = await res.json();

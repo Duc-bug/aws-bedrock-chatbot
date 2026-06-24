@@ -147,9 +147,9 @@ app.get("*", (req, res) => {
 // ─── Start Server ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log("╔════════════════════════════════════════╗");
-  console.log("║     🤖 AWS Bedrock Chatbot (OpenAI)    ║");
+  console.log("║     🤖 NEXUS AI   ║");
   console.log("╠════════════════════════════════════════╣");
-  console.log(`║  URL    : http://localhost:${PORT}         ║`);
+  console.log(`║  URL    : http://localhost:${PORT}     ║`);
   console.log(`║  Model  : ${MODEL_ID}`);
   console.log(`║  Project: ${process.env.BEDROCK_PROJECT || "default"}`);
   console.log("╚════════════════════════════════════════╝");
