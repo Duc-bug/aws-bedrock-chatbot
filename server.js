@@ -3,6 +3,8 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const OpenAI = require("openai");
+const { DynamoDBClient, PutItemCommand, QueryCommand, DeleteItemCommand } = require("@aws-sdk/client-dynamodb");
+const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,13 +20,22 @@ const client = new OpenAI({
 
 const MODEL_ID = process.env.BEDROCK_MODEL_ID || "deepseek.v3.2";
 
+// ─── Cấu hình DynamoDB Client ────────────────────────────────────────────────
+const dynamoClient = new DynamoDBClient({
+  region: process.env.AWS_REGION || "ap-southeast-2",
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
+const TABLE_NAME = process.env.DYNAMODB_TABLE || "nexus-chat-sessions";
+
 // ─── Middleware ──────────────────────────────────────────────────────────────
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "5mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-// ─── Routes ─────────────────────────────────────────────────────────────────
-
+// ─── Health Check ────────────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
@@ -35,15 +46,79 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Chat endpoint
+// ─── Session API (DynamoDB) ──────────────────────────────────────────────────
+
+// GET: Lấy tất cả sessions của 1 user
+app.get("/api/sessions/:userId", async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const result = await dynamoClient.send(new QueryCommand({
+      TableName: TABLE_NAME,
+      KeyConditionExpression: "userId = :uid",
+      ExpressionAttributeValues: marshall({ ":uid": userId }),
+      ScanIndexForward: false, // mới nhất lên đầu
+    }));
+    const sessions = (result.Items || []).map(item => {
+      const s = unmarshall(item);
+      // Parse messages vì đã lưu dạng JSON string
+      if (typeof s.messages === "string") s.messages = JSON.parse(s.messages);
+      return s;
+    });
+    res.json({ success: true, sessions });
+  } catch (error) {
+    console.error("DynamoDB GET error:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST: Lưu 1 session
+app.post("/api/sessions", async (req, res) => {
+  const { userId, session } = req.body;
+  if (!userId || !session) {
+    return res.status(400).json({ success: false, error: "Thiếu dữ liệu" });
+  }
+  try {
+    await dynamoClient.send(new PutItemCommand({
+      TableName: TABLE_NAME,
+      Item: marshall({
+        userId,
+        sessionId: String(session.id),
+        title: session.title || "Hội thoại",
+        timestamp: session.timestamp || new Date().toISOString(),
+        messages: JSON.stringify(session.messages || []),
+        systemPrompt: session.systemPrompt || "",
+        msgCount: session.msgCount || 0,
+        autoSaved: session.autoSaved || false,
+      }),
+    }));
+    res.json({ success: true });
+  } catch (error) {
+    console.error("DynamoDB POST error:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE: Xoá 1 session
+app.delete("/api/sessions/:userId/:sessionId", async (req, res) => {
+  const { userId, sessionId } = req.params;
+  try {
+    await dynamoClient.send(new DeleteItemCommand({
+      TableName: TABLE_NAME,
+      Key: marshall({ userId, sessionId }),
+    }));
+    res.json({ success: true });
+  } catch (error) {
+    console.error("DynamoDB DELETE error:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ─── Chat Endpoint ───────────────────────────────────────────────────────────
 app.post("/api/chat", async (req, res) => {
   const { messages, systemPrompt } = req.body;
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
-    return res.status(400).json({
-      success: false,
-      error: "Thiếu dữ liệu",
-    });
+    return res.status(400).json({ success: false, error: "Thiếu dữ liệu" });
   }
 
   try {
@@ -79,7 +154,6 @@ app.post("/api/chat", async (req, res) => {
 - Tự động chuyển sang ngôn ngữ khác nếu người dùng chủ động dùng ngôn ngữ đó.
 - Giữ nhất quán ngôn ngữ trong suốt cuộc trò chuyện trừ khi người dùng yêu cầu đổi.`;
 
-    // Format chuẩn OpenAI: system + conversation history
     const formattedMessages = [
       { role: "system", content: systemPrompt || defaultSystem },
       ...messages.map((msg) => ({
@@ -93,7 +167,6 @@ app.post("/api/chat", async (req, res) => {
     console.log(`Messages: ${formattedMessages.length} (bao gồm system)`);
     console.log(`User    : "${messages[messages.length - 1]?.content?.substring(0, 60)}"`);
 
-    // Gọi Bedrock qua OpenAI SDK
     const response = await client.chat.completions.create({
       model: MODEL_ID,
       messages: formattedMessages,
@@ -102,7 +175,6 @@ app.post("/api/chat", async (req, res) => {
     });
 
     const choice = response.choices[0];
-    // Một số model reasoning trả kết quả trong field 'reasoning' thay vì 'content'
     const assistantMessage =
       choice.message.content ||
       choice.message.reasoning ||
@@ -137,13 +209,13 @@ app.post("/api/chat", async (req, res) => {
 
     if (error.status === 401) {
       errorMessage = "API key không hợp lệ";
-      suggestion = "Kiểm tra BEDROCK_API_KEY trong .env — lấy từ Bedrock > API keys";
+      suggestion = "Kiểm tra BEDROCK_API_KEY trong .env";
     } else if (error.status === 403) {
       errorMessage = "Không có quyền truy cập";
       suggestion = "Kiểm tra API key có đúng Project không";
     } else if (error.status === 404) {
       errorMessage = `Model '${MODEL_ID}' không tìm thấy`;
-      suggestion = "Kiểm tra BEDROCK_MODEL_ID trong .env — xem Live API docs để lấy tên model đúng";
+      suggestion = "Kiểm tra BEDROCK_MODEL_ID trong .env";
     } else if (error.status === 429) {
       errorMessage = "Quá nhiều request";
       suggestion = "Thử lại sau vài giây";
@@ -166,7 +238,7 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// Serve frontend
+// ─── Serve Frontend ──────────────────────────────────────────────────────────
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
@@ -174,10 +246,10 @@ app.get("*", (req, res) => {
 // ─── Start Server ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log("╔════════════════════════════════════════╗");
-  console.log("║     🤖 NEXUS AI   ║");
+  console.log("║          🤖 NEXUS AI                  ║");
   console.log("╠════════════════════════════════════════╣");
-  console.log(`║  URL    : http://localhost:${PORT}     ║`);
+  console.log(`║  URL    : http://localhost:${PORT}       ║`);
   console.log(`║  Model  : ${MODEL_ID}`);
-  console.log(`║  Project: ${process.env.BEDROCK_PROJECT || "default"}`);
+  console.log(`║  DB     : DynamoDB · ${process.env.AWS_REGION}`);
   console.log("╚════════════════════════════════════════╝");
 });

@@ -894,32 +894,15 @@
     let isLoading = false;
 
     // ─── LocalStorage Keys ────────────────────────────────────
-    const LS_HISTORY  = 'nexus_chat_history';
-    const LS_SYSTEM   = 'nexus_system_prompt';
-    const LS_SESSIONS = 'nexus_sessions';
-
-    // ─── Lưu dữ liệu vào localStorage ────────────────────────
-    function saveToStorage() {
-      try {
-        localStorage.setItem(LS_HISTORY, JSON.stringify(conversationHistory));
-        localStorage.setItem(LS_SYSTEM, systemPrompt.value);
-      } catch (e) {
-        console.warn('localStorage không khả dụng:', e);
-      }
+    
+    // Tạo userId ngẫu nhiên cho mỗi trình duyệt để lưu session riêng (Bắt buộc phải giữ để nhận diện máy)
+    let userId = localStorage.getItem('nexus_userId');
+    if (!userId) {
+      userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('nexus_userId', userId);
     }
-
-    // ─── Khôi phục dữ liệu từ localStorage ───────────────────
-    function loadFromStorage() {
-      try {
-        // Chỉ khôi phục system prompt, không render lại tin nhắn
-        const savedSystem = localStorage.getItem(LS_SYSTEM);
-        if (savedSystem) {
-          systemPrompt.value = savedSystem;
-        }
-      } catch (e) {
-        console.warn('Không thể đọc localStorage:', e);
-      }
-    }
+    
+    let cachedSessions = [];
 
     // ─── DOM Refs ─────────────────────────────────────────────
     const chatContainer = document.getElementById('chat-container');
@@ -1040,8 +1023,6 @@
     function clearChat() {
       if (!confirm('Bạn có chắc muốn xoá toàn bộ lịch sử chat không?')) return;
       conversationHistory = [];
-      // Xoá khỏi localStorage
-      localStorage.removeItem(LS_HISTORY);
       chatContainer.innerHTML = `
       <div id="welcome">
         <div class="welcome-icon">✨</div>
@@ -1073,7 +1054,6 @@
       // Append user message
       appendMessage('user', text);
       conversationHistory.push({ role: 'user', content: text });
-      saveToStorage();
 
       // Show typing
       showTyping();
@@ -1094,7 +1074,6 @@
 
         if (data.success) {
           conversationHistory.push({ role: 'assistant', content: data.message });
-          saveToStorage();
           appendMessage('bot', data.message, {
             tokens: data.usage?.totalTokens,
           });
@@ -1119,29 +1098,40 @@
     }
 
     // ─── History Sidebar ──────────────────────────────────────
-    function toggleHistory() {
+    async function toggleHistory() {
       const panel   = document.getElementById('history-panel');
       const overlay = document.getElementById('history-overlay');
       const isOpen  = panel.classList.toggle('open');
       overlay.classList.toggle('open', isOpen);
-      if (isOpen) renderSessionList();
+      if (isOpen) {
+        document.getElementById('session-list').innerHTML = '<div class="no-sessions">Đang tải...</div>';
+        await fetchSessions();
+        renderSessionList();
+      }
     }
 
-    function getSessions() {
+    async function fetchSessions() {
       try {
-        return JSON.parse(localStorage.getItem(LS_SESSIONS) || '[]');
-      } catch { return []; }
+        const res = await fetch(`/api/sessions/${userId}`);
+        const data = await res.json();
+        if (data.success) {
+          cachedSessions = data.sessions;
+        }
+      } catch (e) {
+        console.error('Lỗi khi tải lịch sử:', e);
+      }
     }
 
-    function saveSessions(sessions) {
-      localStorage.setItem(LS_SESSIONS, JSON.stringify(sessions));
-    }
-
-    function saveCurrentSession() {
+    async function saveCurrentSession() {
       if (conversationHistory.length === 0) {
         showToast('⚠️ Chưa có tin nhắn nào để lưu!', 2500);
         return;
       }
+      
+      const btn = document.getElementById('btn-save-session');
+      btn.disabled = true;
+      btn.innerText = 'Đang lưu...';
+
       const firstUserMsg = conversationHistory.find(m => m.role === 'user');
       const title = firstUserMsg
         ? firstUserMsg.content.substring(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '')
@@ -1154,27 +1144,34 @@
         messages: [...conversationHistory],
         systemPrompt: systemPrompt.value,
         msgCount: conversationHistory.length,
+        autoSaved: false
       };
 
-      const sessions = getSessions();
-      sessions.unshift(session);
-      // Giới hạn 30 phiên
-      if (sessions.length > 30) sessions.splice(30);
-      saveSessions(sessions);
-      renderSessionList();
-      showToast('✅ Đã lưu phiên hội thoại!', 2500);
+      try {
+        await fetch('/api/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, session })
+        });
+        await fetchSessions();
+        renderSessionList();
+        showToast('✅ Đã lưu phiên hội thoại!', 2500);
+      } catch (e) {
+        showToast('❌ Lỗi khi lưu!', 2500);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '💾 Lưu cuộc hội thoại hiện tại';
+      }
     }
 
     function loadSession(id) {
-      const sessions = getSessions();
-      const session  = sessions.find(s => s.id === id);
+      const session  = cachedSessions.find(s => String(s.sessionId) === String(id));
       if (!session) return;
 
       if (conversationHistory.length > 0 && !confirm('Tải phiên này sẽ thay thế hội thoại hiện tại. Tiếp tục?')) return;
 
       conversationHistory = [...session.messages];
       if (session.systemPrompt) systemPrompt.value = session.systemPrompt;
-      saveToStorage();
 
       // Render lại
       const welcome = document.getElementById('welcome');
@@ -1188,17 +1185,24 @@
       showToast('📂 Đã tải phiên: ' + session.title.substring(0, 30), 3000);
     }
 
-    function deleteSession(id, e) {
+    async function deleteSession(id, e) {
       e.stopPropagation();
       if (!confirm('Xoá phiên hội thoại này?')) return;
-      const sessions = getSessions().filter(s => s.id !== id);
-      saveSessions(sessions);
-      renderSessionList();
+      
+      e.target.innerText = '...';
+      try {
+        await fetch(`/api/sessions/${userId}/${id}`, { method: 'DELETE' });
+        await fetchSessions();
+        renderSessionList();
+      } catch (e) {
+        showToast('❌ Lỗi khi xoá!', 2500);
+        e.target.innerText = '🗑';
+      }
     }
 
     function renderSessionList() {
       const list     = document.getElementById('session-list');
-      const sessions = getSessions();
+      const sessions = cachedSessions;
 
       if (sessions.length === 0) {
         list.innerHTML = `
@@ -1217,13 +1221,13 @@
         });
         const msgLabel = Math.floor(s.msgCount / 2) + ' câu hỏi';
         return `
-          <div class="session-item" onclick="loadSession(${s.id})">
+          <div class="session-item" onclick="loadSession('${s.sessionId}')">
             <div class="session-icon">💬</div>
             <div class="session-info">
               <div class="session-title">${s.title.replace(/</g,'&lt;')}</div>
-              <div class="session-meta">${date} &nbsp;·&nbsp; ${msgLabel}</div>
+              <div class="session-meta">${date} &nbsp;·&nbsp; ${msgLabel}${s.autoSaved ? ' &nbsp;·&nbsp; <i style="color:var(--aws-orange)">Auto</i>' : ''}</div>
             </div>
-            <button class="session-del" onclick="deleteSession(${s.id}, event)" title="Xoá phiên này">🗑</button>
+            <button class="session-del" onclick="deleteSession('${s.sessionId}', event)" title="Xoá phiên này">🗑</button>
           </div>`;
       }).join('');
     }
@@ -1247,25 +1251,17 @@
         autoSaved: true,  // đánh dấu là tự động lưu
       };
 
-      const sessions = getSessions();
-      // Xoá phiên auto-save cũ nhất nếu đã có (tránh trùng)
-      const withoutOldAuto = sessions.filter(s => !s.autoSaved);
-      withoutOldAuto.unshift(session);
-      if (withoutOldAuto.length > 30) withoutOldAuto.splice(30);
-      saveSessions(withoutOldAuto);
-
-      // Xoá LS_HISTORY → lần mở tiếp theo bắt đầu trang mới
-      localStorage.removeItem(LS_HISTORY);
+      // Lưu cái mới
+      fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, session }),
+        keepalive: true
+      });
     });
 
-    // ─── Health check on load + Khôi phục dữ liệu ───────────
+    // ─── Health check on load ───────────
     window.addEventListener('load', async () => {
-      // Chỉ khôi phục system prompt, bắt đầu trang mới
-      loadFromStorage();
-
-      // Lưu system prompt khi người dùng thay đổi
-      systemPrompt.addEventListener('input', saveToStorage);
-
       // Health check
       try {
         const res = await fetch('/api/health');
