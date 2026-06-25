@@ -8,6 +8,7 @@
   <meta name="description" content="Chatbot AI thông minh" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     /* CSS Reset and Variables */
     :root {
@@ -500,6 +501,34 @@
     p:last-child {
       margin-bottom: 0;
     }
+
+    /* Table styles */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    table th, table td {
+      border: 1px solid var(--border-color);
+      padding: 12px 16px;
+      text-align: left;
+    }
+
+    table th {
+      background: rgba(255, 255, 255, 0.05);
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    table tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    table tr:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
   </style>
 </head>
 
@@ -689,6 +718,27 @@
 
     // ─── Message Rendering ────────────────────────────────────
     function renderText(text) {
+      if (typeof marked !== 'undefined') {
+        // Pre-process: unwrap tables from markdown code blocks
+        let cleanText = text.replace(/```[a-z]*\n([\s\S]*?)\n```/gi, (match, content) => {
+            // Check if the content inside the codeblock looks like a markdown table
+            if (content.match(/\|.*\|/) && content.match(/\|[\s:-]+\|/)) {
+                return '\n' + content + '\n';
+            }
+            return match;
+        });
+
+        // Also fix indented tables (4 spaces) that might be treated as code blocks
+        cleanText = cleanText.replace(/^( {4,})(\|.*\|)/gm, '$2');
+
+        // Enable GitHub Flavored Markdown (tables, etc) and line breaks
+        marked.setOptions({
+          gfm: true,
+          breaks: true
+        });
+        return marked.parse(cleanText);
+      }
+      // Fallback
       return text
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
